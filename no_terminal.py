@@ -44,10 +44,9 @@ def animate(i):
         x=np.linspace(i-17,i+3,data.shape[1])
     #x=np.linspace(0,len(data),50)
     #point=np.array([[1],[random.randrange(0,100)],[3],[4],[5],[6]])
-    #data=np.append(data ,point,axis=1)
+    #data=np.append(data ,point,axis=1
     accel.clear()
     accel.set_ylim(-30,30)
-    accel.axis('tight')
     accel.grid(True)
     accel.title.set_text("Acceleration")
     accel.margins(x=0)
@@ -55,7 +54,7 @@ def animate(i):
     accel.plot(x,data[1],lw=1,label='y')
     accel.plot(x,data[2],lw=1,label='z')
     accel.legend()
-
+    
 
 
 

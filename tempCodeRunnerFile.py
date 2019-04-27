@@ -1,3 +1,3 @@
-import no_terminal 
+import plot_telemetry as tel
 
-no_terminal.plot_telemetry()
+tel.plot_telemetry()

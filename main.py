@@ -12,21 +12,29 @@ from matplotlib import style
 data=np.zeros((1,6))
 
 #open a pySerial connection to the slave
-ser = Serial('/dev/tty.usbserial-A908578T', 9600, timeout=1)
+ser = Serial('/dev/tty.usbserial-A908578T', 115200, timeout=1)
 ser.flush()
+i =0 
+while 1:
+    i+=1
+    ser.write(str(i).encode())
+    ser.write("\r\n".encode())
 
-line=ser.readline()
-point=line.split()
-data[:][0]=point
 
-while True:
-    line=ser.readline()
-    point=line.split()
-    data[:][i]=point
-    #for i in range(0,100):
-    print(data)  
-    plt.plot(data[1])
-    plt.show()
+
+
+# line=ser.readline()
+# point=line.split()
+# data[:][0]=point
+
+# while True:
+#     line=ser.readline()
+#     point=line.split()
+#     data[:][i]=point
+#     #for i in range(0,100):
+#     print(data)  
+#     plt.plot(data[1])
+#     plt.show()
     
 
 

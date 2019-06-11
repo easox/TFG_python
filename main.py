@@ -6,6 +6,7 @@ import threading
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import random
 from serial import Serial
 from matplotlib import style
 
@@ -17,8 +18,16 @@ ser.flush()
 i =0 
 while 1:
     i+=1
-    ser.write(str(i).encode())
-    ser.write("\r\n".encode())
+
+
+
+    ser.write(random.randint(0,10))
+    ser.write(random.randint(0,10))
+    ser.write(random.randint(0,10))
+    ser.write(random.randint(0,10))
+    ser.write(random.randint(0,10))
+    ser.write(random.randint(0,10))
+    ser.write(bytes('\n','utf-8'))
 
 
 

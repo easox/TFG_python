@@ -13,21 +13,33 @@ from matplotlib import style
 data=np.zeros((1,6))
 
 #open a pySerial connection to the slave
-ser = Serial('/dev/tty.usbserial-A908578T', 115200, timeout=1)
+ser = Serial('/dev/tty.SLAB_USBtoUART', 115200, timeout=1)
 ser.flush()
-i =0 
-while 1:
+
+i=100
+while True:
+    ser.write([104, 101 ,i ,108, 111 ,10])
     i+=1
 
 
 
-    ser.write(random.randint(0,10))
-    ser.write(random.randint(0,10))
-    ser.write(random.randint(0,10))
-    ser.write(random.randint(0,10))
-    ser.write(random.randint(0,10))
-    ser.write(random.randint(0,10))
-    ser.write(bytes('\n','utf-8'))
+
+
+
+# i=0
+
+# while 1:
+#     i+=1
+
+
+
+#     ser.write(random.randint(0,10))
+#     ser.write(random.randint(0,10))
+#     ser.write(random.randint(0,10))
+#     ser.write(random.randint(0,10))
+#     ser.write(random.randint(0,10))
+#     ser.write(random.randint(0,10))
+#     ser.write(bytes('\n','utf-8'))
 
 
 

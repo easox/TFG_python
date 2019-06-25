@@ -10,16 +10,65 @@ import random
 from serial import Serial
 from matplotlib import style
 
-data=np.zeros((1,6))
+G4ACCEL=0.000122070312
+
+
+def check_start():
+    while True:
+            a=ser.read(1)
+            if a==b'Y':
+                a=ser.read(1)
+                if a==b'Y':
+                    break
+
+
+    
+
 
 #open a pySerial connection to the slave
-ser = Serial('/dev/tty.SLAB_USBtoUART', 115200, timeout=1)
-ser.flush()
+ser = Serial('/dev/tty.usbserial-A908578T', 115200, timeout=.1)
+time.sleep(1)
 
-i=100
+f = open('data.txt', 'w')
+
+init=0
+ser.read(ser.in_waiting)
+#ser.reset_input_buffer()
+print(ser.in_waiting)
+
+    
 while True:
-    ser.write([104, 101 ,i ,108, 111 ,10])
-    i+=1
+
+    check_start()
+    line=ser.read(11)
+    num=struct.unpack('<IhhhB',line)
+    
+    print(num[0])
+    print(num[1]*G4ACCEL)
+    print(num[2]*G4ACCEL)
+    print(num[3]*G4ACCEL)
+    print(num[4])
+    print('')
+    
+
+   
+
+    # try:
+
+    #     line=line.decode('utf-8')
+    #     print(line)
+    #     f.write(line)
+       
+
+
+    # except:
+    #     print(line)
+        
+    
+
+
+
+
 
 
 

@@ -11,6 +11,8 @@ from serial import Serial
 from matplotlib import style
 
 G4ACCEL=0.000122070312
+GPS_BUFFER_SIZE=200
+DPS500=0.015267175572
 
 
 def check_start():
@@ -40,15 +42,38 @@ print(ser.in_waiting)
 while True:
 
     check_start()
-    line=ser.read(11)
-    num=struct.unpack('<IhhhB',line)
+    line=ser.read(17)
+    num=struct.unpack('<IhhhhhhB',line)
     
     print(num[0])
     print(num[1]*G4ACCEL)
     print(num[2]*G4ACCEL)
     print(num[3]*G4ACCEL)
-    print(num[4])
+    print(num[4]*DPS500)
+    print(num[5]*DPS500)
+    print(num[6]*DPS500)
+    print(num[7])
     print('')
+    if num[7]==0x71:
+        line=ser.read(6)
+        mag=struct.unpack('<hhh',line)
+
+        gps_data=(ser.read(GPS_BUFFER_SIZE)).decode('utf-8','ignore')
+        line=ser.read(4)
+        end_time=struct.unpack('<I',line)
+
+
+        print(mag[0])
+        print(mag[1])
+        print(mag[2])
+        print(gps_data)
+        print(end_time)
+        print('')
+        print('')
+
+    
+
+        
     
 
    

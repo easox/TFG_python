@@ -29,7 +29,7 @@ def check_start():
 ser = Serial('/dev/tty.usbserial-A908578T', 115200, timeout=.1)
 time.sleep(1)
 
-f = open('data.txt', 'w')
+f = open('data.txt', 'wb')
 
 init=0
 ser.read(ser.in_waiting)

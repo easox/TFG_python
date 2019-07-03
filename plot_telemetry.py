@@ -36,7 +36,7 @@ def plot_telemetry():
     ser.flush()
     line=ser.read_until('\n',6)
     #line=ser.readline()
-    #point=line.split()
+    point=line.split()
     point=np.asarray(point)/1.0
     point_2D=np.array([point])
 

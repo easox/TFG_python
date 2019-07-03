@@ -10,12 +10,8 @@ import random
 from serial import Serial
 from matplotlib import style
 
-ser = Serial('/dev/tty.usbserial-A908578T', 115200, timeout=10)
-time.sleep(1)
 
-f = open('data.txt', 'wb')
-ser.reset_input_buffer()
-while True:
-  f.write(ser.read())
-
-
+in_file = open("write.txt", "rb") # opening for [r]eading as [b]inary
+data = in_file.read(1) # if you only wanted to read 512 bytes, do .read(512)
+print(data)
+in_file.close()

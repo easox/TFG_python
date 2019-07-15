@@ -13,66 +13,42 @@ from matplotlib import style
 G4ACCEL=0.000122070312
 GPS_BUFFER_SIZE=100
 DPS500=0.015267175572
-
-def read_packet():
-    check_start()
-    line=ser.read(17)
-    timestamp,ax,ay,az,gx,gy,gz,end_byte=struct.unpack('<IhhhhhhB',line)
-    
-    print(timestamp)
-    print(ax*G4ACCEL)
-    print(ay*G4ACCEL)
-    print(az*G4ACCEL)
-    print(gx*DPS500)
-    print(gy*DPS500)
-    print(gz*DPS500)
-    print(end_byte)
-    print('')
-    if end_byte==0x71:
-        line=ser.read(6)
-        mag=struct.unpack('<hhh',line)
-
-        gps_data=(ser.read(GPS_BUFFER_SIZE)).decode('utf-8','ignore')
+class uart_reciever():
+    def __init__(device='/dev/tty.usbserial-A908578T', baudrate=115200):
+        ser = Serial(device, baudrate, timeout=.1)
+        time.sleep(1)
+        init=0
+        ser.read(ser.in_waiting)
+        #ser.reset_input_buffer()
+        print(ser.in_waiting)
+    def read_packet(self):
+        check_start()
+        line=self.ser.read(17)
+        timestamp,ax,ay,az,gx,gy,gz,end_byte=struct.unpack('<IhhhhhhB',line)
         
+        if end_byte==0x71:
+            line=self.ser.read(6)
+            mag=struct.unpack('<hhh',line)
 
-
-        print(mag[0])
-        print(mag[1])
-        print(mag[2])
-        print(gps_data)
-    line=ser.read(4)
-    end_time=struct.unpack('<I',line)
-    print(end_time[0])
-    print('')
-    print('')
+            ##gps_data=(ser.read(GPS_BUFFER_SIZE)).decode('utf-8','ignore')
+            return ax,ay,az,gx*DPS500,gy*DPS500,gz*DPS500,mag[0],mag[1],mag[2]
+        else:
+            return ax,ay,az,gx*DPS500,gy*DPS500,gz*DPS500
 
 
 
-def check_start():
-    while True:
-            a=ser.read(1)
-            if a==b'Y':
-                a=ser.read(1)
+    def check_start(self):
+        while True:
+                a=self.ser.read(1)
                 if a==b'Y':
-                    break
+                    a=self.ser.read(1)
+                    if a==b'Y':
+                        break
 
 
     
 
 
-#open a pySerial connection to the slave
-ser = Serial('/dev/tty.usbserial-A908578T', 921600, timeout=.1)
-time.sleep(1)
 
-f = open('data.txt', 'wb')
-
-init=0
-ser.read(ser.in_waiting)
-#ser.reset_input_buffer()
-print(ser.in_waiting)
-
-    
-while True:
-    read_packet()
 
 

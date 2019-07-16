@@ -9,6 +9,7 @@ import struct
 import Quaternion_naive
 import madgwickahrs
 import allign_axis
+import kalman_filter
 import threading
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,10 +19,11 @@ import random
 from serial import Serial
 from matplotlib import style
 
-G4ACCEL=0.000122070312
+G4ACCEL=0.000122070312*9.80665 
 GPS_BUFFER_SIZE=100
 DPS500=0.015267175572
 
+#parses one line of NMEA GPS data
 def gps_unpack(line):
   if line:
     msg=pynmea2.parse(line)
@@ -44,7 +46,7 @@ def gps_unpack(line):
     print("Nothing to read")
     return 200,300,400,500
 
-
+#reads magcalib file into np array data
 def read_mag_file(file="magcalib.txt"):
   data = np.empty((0,3), float) #x,y,z mag values
   in_file=open(file,"rb")
@@ -56,12 +58,12 @@ def read_mag_file(file="magcalib.txt"):
         in_file.close()
         break
 
-      mag=np.asarray(struct.unpack('<hhh',line))
-
+      my,mx,mz_neg=np.asarray(struct.unpack('<hhh',line))
+      mag=[mx,my,-mz_neg]
       data=np.append(data,[mag],axis=0)
     return data
   
-
+#reads out file into 2 arrays, one with IMU, one with GPS
 def read_data_file(file="out.txt"):
     data1 = np.empty((0,8), float) # timestamp, accelx,y,z,gyrox,y,z
     data2 = np.empty((0,8),float) #timestamp,gpstime,lon,lat,vel,track_angle,mag_var,magx,y,z
@@ -86,7 +88,8 @@ def read_data_file(file="out.txt"):
           line=in_file.read(6)
           if check_eof(line,6):
             break
-          mag=struct.unpack('<hhh',line)
+          my,mx,mz_neg=np.asarray(struct.unpack('<hhh',line))
+          mag=[mx,my,-mz_neg]
           gps_line=in_file.read(GPS_BUFFER_SIZE)
           if check_eof(gps_line,GPS_BUFFER_SIZE):
             in_file.close()
@@ -111,6 +114,7 @@ def read_data_file(file="out.txt"):
     return data1,data2
 
 
+#checks that there are still bytes to be read, if not, ends the search
 def check_eof(string,read_b):
   if len(string)<read_b:
     print("EOF file reached correctly")
@@ -120,7 +124,7 @@ def check_eof(string,read_b):
     return 0
     
     
-
+#checks start sequence YY
 def check_start(in_file):
     while True:
             a=in_file.read(1)
@@ -139,7 +143,7 @@ def check_start(in_file):
 
 
 
-    
+#graphics display    
 def display_all(data,data2):
   fig = plt.figure()
   fig2=plt.figure()
@@ -201,7 +205,7 @@ def display_all(data,data2):
 
 
 
-  #data,data2=read_data_file(file='out.txt')
+  #data,data2=read_data_file(file='out.txt') #NO longer needed, passed in by main already calibrated
   
 
   data2[1:,0]=data2[1:,0]/1000
@@ -224,7 +228,7 @@ def display_all(data,data2):
   mag.plot(data2[1:,0], data2[1:,7],lw=1,label='mz')
 
 
-  location.plot(data2[1:,3],data2[1:,2],lw=1,label='xy location')
+  location.plot(data2[1:,2],data2[1:,3],lw=1,label='xy location')
   location.set_aspect('equal')
 
 
@@ -246,8 +250,9 @@ def display_all(data,data2):
   mag.legend()
 
 
-  plt.show()
 
+
+#gps coordinates 2 meters (pass in all of data 2)
 def coord_2_meters(data2):
   gps_handler=showmap.GPS_handler_class()
   for a in range(0,len(data2)):
@@ -256,7 +261,7 @@ def coord_2_meters(data2):
 
   return data2
 
-
+#finds rotation matrix to get to north west up coordinate system
 def data_2_NWU(data1,data2):
   n=100
   m=20
@@ -293,41 +298,125 @@ def calibration_mag(data2):
 
 def main():
   
-  mad_filter=madgwickahrs.MadgwickAHRS(1/50,beta=.1)
+  mad_filter=madgwickahrs.MadgwickAHRS(1/20,beta=.1)
+  
 
   data1,data2=read_data_file(file='out.txt')
+
   data1=calib_gyro(data1)
   data2=calibration_mag(data2)
   data2=coord_2_meters(data2)
   data2=center_meters(data2)
-  
   R=data_2_NWU(data1,data2)
+  k_filter=kalman_filter.KalmanFilter(200,200,5,5,2,2,0,0,0,1/20)
+  k_filter.init_pos_vel_accel_x()
   g_NWU=np.matmul(R,np.transpose(data1[0,1:4]))
   
 
+  for a in range(0,len(data1)):
+    data1[a,1:4]=np.matmul(R,np.transpose(data1[a,1:4]))
+    data1[a,4:7]=np.matmul(R,np.transpose(data1[a,4:7]))
+
+  for a in range(0,len(data2)):
+    data2[a,5:8]=np.matmul(R,np.transpose(data2[a,5:8]))
+
   orientation=np.empty((0,3),float)
-  
+  x=np.empty((0,6),float)
+  a_NWU_aux=np.empty((0,3),float)
   data2_index=0
-  for a in range(0, len(data1)):
+
+  
+  for a in range(0, len(data1)-100):
+    
+    
     if data1[a,7]==0:
       theta=updateEuler(data1[a,1:4],data1[a,4:7],data1[a,7],[0,0,0],mad_filter)
+      R_tot=allign_axis.eulerAnglesToRotationMatrix([theta[2],theta[1],theta[0]])
+      k_filter.init_accel_y()
+      k_filter.predict()
+      #a_NWU=np.linalg.inv(R_tot)@(data1[a,1:4])
+      a_NWU=R_tot@(data1[a,1:4])
+      k_filter.update(np.array([[0],[0],[0],[0],[a_NWU[0]],[a_NWU[1]]]))
     else:
       theta=updateEuler(data1[a,1:4],data1[a,4:7],data1[a,7],data2[data2_index,5:8],mad_filter)
+      R_tot=allign_axis.eulerAnglesToRotationMatrix([theta[2],theta[1],theta[0]])
       data2_index+=1
-    R_tot=allign_axis.eulerAnglesToRotationMatrix(theta)
-    orientation=np.append(orientation,[theta],0)
+      k_filter.init_pos_accel_y()
+      k_filter.predict()
+      # a_NWU=np.linalg.inv(R_tot)@(data1[a,1:4])
+      a_NWU=R_tot@(data1[a,1:4])
+      k_filter.update(np.array([[data2[data2_index,3]],[-data2[data2_index,2]],[0],[0],[a_NWU[0]],[a_NWU[1]]]))
+      
+    a_NWU_aux=np.append(a_NWU_aux,np.array([a_NWU]),0)
+      
+    
+    temp,a=k_filter.get_state()
+    if temp[1]>50:
 
+      print(temp)
+    x=np.append(x,temp.transpose(),0)
+
+    
+    orientation=np.append(orientation,np.array([[theta[2],theta[1],theta[0]]]),0)
+
+  fig13=plt.figure()
+  fig12=plt.figure()
+  fig11=plt.figure()
   fig10=plt.figure()
+  kalman_pos=fig11.add_subplot(1,1,1)
+  kalman_pos.title.set_text("position")
+  kalman_pos.set_ylabel("East")
+  kalman_pos.set_xlabel("m")
+  kalman_pos.margins(x=0)
+  # kalman_pos.scatter(-x[:,1],x[:,0],c=data1[:7371,0])
+  kalman_pos.plot(-x[:,1],x[:,0])
+
+
   orient=fig10.add_subplot(1,1,1)
   orient.title.set_text("Orientation")
   orient.set_ylabel("rad")
   orient.set_xlabel("time (sec)")
   orient.margins(x=0)
-  orient.plot(orientation[:,0],label="roll")
-  orient.plot(orientation[:,1],label="pitch")
-  orient.plot(orientation[:,2],label="yaw")
+
+  orient.plot(data1[:len(orientation),0],orientation[:,0],label="roll")
+  orient.plot(data1[:len(orientation),0],orientation[:,1],label="pitch")
+  orient.plot(data1[:len(orientation),0],orientation[:,2],label="yaw")
   orient.legend()
+
+  corrected_accel=fig12.add_subplot(1,1,1)
+  corrected_accel.title.set_text("Corrected accel")
+  corrected_accel.set_ylabel("rad")
+  corrected_accel.set_xlabel("time (sec)")
+  corrected_accel.margins(x=0)
+
+  corrected_accel.plot(a_NWU_aux[:,0],label="ax")
+  corrected_accel.plot(a_NWU_aux[:,1],label="ay")
+  corrected_accel.plot(a_NWU_aux[:,2],label="az")
+  corrected_accel.legend()
   display_all(data1,data2)
+
+  pos_check=fig13.add_subplot(1,1,1)
+  pos_check.title.set_text("pos")
+  pos_check.set_ylabel("accel")
+  pos_check.set_xlabel("posistion")
+  pos_check.margins(x=0)
+  pos_check.plot(-x[:,1],a_NWU_aux[:,0],label="ax_corrected")
+  pos_check.plot(-x[:,1],a_NWU_aux[:,1],label="ay_corrected")
+  pos_check.plot(-x[:,1],a_NWU_aux[:,2],label="az_corrected")
+
+  # corrected_accel.plot(-x[:,1],data2[:,5],label="mx")
+  # corrected_accel.plot(-x[:,1],data2[:,6],label="my")
+  # corrected_accel.plot(-x[:,1],data2[:,7],label="mz")
+
+  # pos_check.plot(-x[:,1],data1[:7371,4],label="gx")
+  # pos_check.plot(-x[:,1],data1[:7371,5],label="gy")
+  # pos_check.plot(-x[:,1],data1[:7371,6],label="gz")
+  pos_check.legend()
+
+
+  
+
+  plt.show()
 
 
 def center_meters(data):
@@ -351,6 +440,25 @@ def updateEuler(a,g,byte,m,mad_filter):
   return np.array([roll,pitch,yaw])*math.pi/180
 
 
+def sigma_array(data,n):
+  avg_x=0
+  avg_y=0
+  avg_z=0
+
+  for a in range(0,n):
+    avg_x+=data[a,0]
+    avg_y+=data[a,1]
+    avg_z+=data[a,2]
+  
+  for a in range(0,n):
+    var_x+=(data[a,0]-avg_x)*(data[a,0]-avg_x)
+    var_y+=(data[a,1]-avg_y)*(data[a,1]-avg_y)
+    var_z+=(data[a,2]-avg_z)*(data[a,2]-avg_z)
+    cov_xy+=(data[a,0]-avg_x)*(data[a,1]-avg_y)
+    cov_xz+=(data[a,0]-avg_x)*(data[a,2]-avg_z)
+    cov_yz+=(data[a,1]-avg_y)*(data[a,2]-avg_z)
+
+  return np.array([var_x,var_y,var_z,cov_xy,cov_xz,cov_yz])/(n-1)
 
 def avg_array(data,n):
 
